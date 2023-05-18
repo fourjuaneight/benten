@@ -12,4 +12,4 @@ build: benten.go go.mod
 
 install: benten.go go.mod
 	go install ./benten.go
-	cp .env ${GOPATH}/.env
+	cp .env.benten ${GOPATH}/.env.benten

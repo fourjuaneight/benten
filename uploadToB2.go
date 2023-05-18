@@ -74,7 +74,7 @@ type B2UploadTokens struct {
 
 // Get B2 keys from .env file.
 func getKeys(key string) (string, error) {
-	envPath := os.Getenv("PWD") + "/.env"
+	envPath := os.Getenv("PWD") + "/.env.benten"
 	err := godotenv.Load(envPath)
 	if err != nil {
 		return "", fmt.Errorf("[GetKeys]: %w", err)
