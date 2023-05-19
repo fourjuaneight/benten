@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
 	lop "github.com/samber/lo/parallel"
 	"github.com/urfave/cli/v2"
 )
@@ -65,6 +67,7 @@ func backup(src string, dist string) {
 func main() {
 	var src string
 	var dist string
+	loader := spinner.New(spinner.CharSets[21], 100*time.Millisecond)
 
 	// versioning
 	cli.VersionFlag = &cli.BoolFlag{
@@ -114,7 +117,10 @@ OPTIONS:
 			},
 		},
 		Action: func(*cli.Context) error {
+			loader.Start()
 			backup(src, dist)
+			loader.Stop()
+
 			return nil
 		},
 	}
