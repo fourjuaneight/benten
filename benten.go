@@ -6,41 +6,18 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 
+	lop "github.com/samber/lo/parallel"
 	"github.com/urfave/cli/v2"
 )
 
 var BuildVersion string = "1.0.0"
-
-type FileData struct {
-	data      []byte
-	name      string
-	extension string
-}
 
 var typeMime = map[string]string{
 	"mp3":  "audio/mpeg",
 	"flac": "audio/flac",
 	"mp4":  "video/mp4",
 	"mkv":  "video/x-matroska",
-}
-
-func getFileData(src string) (FileData, error) {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return FileData{}, fmt.Errorf("[readFile][ioutil.ReadFile]: %w", err)
-	}
-
-	name := filepath.Base(src)
-	extension := filepath.Ext(src)
-	extension = extension[1:]
-
-	return FileData{
-		data:      data,
-		name:      name,
-		extension: extension,
-	}, nil
 }
 
 func backup(src string, dist string) {
@@ -50,33 +27,27 @@ func backup(src string, dist string) {
 	}
 
 	if fileInfo.IsDir() {
-		filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		files, err := GetDirFiles(src)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		lop.ForEach(files, func(file string, _ int) {
+			fileData, err := GetFileData(file)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			if info.IsDir() {
-				return nil
-			}
-
-			fileData, err := getFileData(path)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			path = fmt.Sprintf("%s/%s", dist, fileData.name)
-			archiveUrl, uploadtob2Err := UploadToB2(fileData.data, path, typeMime[fileData.extension])
+			uploadPath := fmt.Sprintf("%s/%s", dist, fileData.name)
+			archiveUrl, uploadtob2Err := UploadToB2(fileData.data, uploadPath, typeMime[fileData.extension])
 			if uploadtob2Err != nil {
 				log.Fatal(uploadtob2Err)
 			}
 
 			log.Printf("[Public URL]: %s", archiveUrl)
-
-			return nil
 		})
 	} else {
-
-		fileData, err := getFileData(src)
+		fileData, err := GetFileData(src)
 		if err != nil {
 			log.Fatal(err)
 		}
