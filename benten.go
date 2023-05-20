@@ -41,7 +41,7 @@ func backup(src string, dist string) {
 			}
 
 			uploadPath := fmt.Sprintf("%s/%s", dist, fileData.name)
-			archiveUrl, uploadtob2Err := UploadToB2(fileData.data, uploadPath, typeMime[fileData.extension])
+			archiveUrl, uploadtob2Err := UploadToB2(fileData.data, uploadPath, typeMime[fileData.extension], false)
 			if uploadtob2Err != nil {
 				log.Fatal(uploadtob2Err)
 			}
@@ -55,7 +55,7 @@ func backup(src string, dist string) {
 		}
 
 		path := fmt.Sprintf("%s/%s", dist, fileData.name)
-		archiveUrl, uploadtob2Err := UploadToB2(fileData.data, path, typeMime[fileData.extension])
+		archiveUrl, uploadtob2Err := UploadToB2(fileData.data, path, typeMime[fileData.extension], false)
 		if uploadtob2Err != nil {
 			log.Fatal(uploadtob2Err)
 		}

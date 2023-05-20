@@ -53,6 +53,15 @@ type B2UploadResp struct {
 	} `json:"serverSideEncryption"`
 }
 
+type B2LargeFileStartResp struct {
+	FileId   string `json:"fileId"`
+	FileInfo struct {
+		FileName    string `json:"fileName"`
+		ContentType string `json:"contentType"`
+	}
+	FileName string `json:"fileName"`
+}
+
 type B2Error struct {
 	Status  int    `json:"status"`
 	Code    string `json:"code"`
@@ -64,6 +73,16 @@ type B2AuthTokens struct {
 	AuthorizationToken  string
 	DownloadUrl         string
 	RecommendedPartSize int
+}
+
+type FileInfo struct {
+	FileName    string
+	ContentType string
+}
+
+type B2LargeFileTokens struct {
+	FileId   string
+	FileInfo FileInfo
 }
 
 type B2UploadTokens struct {
@@ -154,9 +173,78 @@ func authTokens() (B2AuthTokens, error) {
 	return authTokens, nil
 }
 
-// Get B2 endpoint for upload.
+// Start B2 large file upload.
+// DOCS: https://www.backblaze.com/b2/docs/b2_start_large_file.html
+func startLargeFile(params FileInfo) (B2LargeFileTokens, error) {
+	authData, err := authTokens()
+	if err != nil {
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][authTokens]: %w", err)
+	}
+
+	bucketID, err := getKeys("BUCKET_ID")
+	if err != nil {
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][GetKeys](BUCKET_ID): %w", err)
+	}
+
+	payload := map[string]string{
+		"bucketId":    bucketID,
+		"fileName":    params.FileName,
+		"contentType": params.ContentType,
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/b2api/v2/b2_start_large_file", authData.ApiUrl), bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][http.NewRequest]: %w", err)
+	}
+
+	req.Header.Set("Authorization", authData.AuthorizationToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][client.Do]: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var b2Error B2Error
+		err := json.NewDecoder(resp.Body).Decode(&b2Error)
+		if err != nil {
+			return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][json.NewDecoder](b2Error): %w", err)
+		}
+
+		msg := b2Error.Message
+		if msg == "" {
+			msg = fmt.Sprintf("%d - %s", b2Error.Status, b2Error.Code)
+		}
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][b2Error]: %s", msg)
+	}
+
+	var results B2LargeFileStartResp
+	err = json.NewDecoder(resp.Body).Decode(&results)
+	if err != nil {
+		return B2LargeFileTokens{}, fmt.Errorf("[startLargeFile][json.NewDecoder](results): %w", err)
+	}
+
+	largeFileTokens := B2LargeFileTokens{
+		FileId:   results.FileId,
+		FileInfo: FileInfo(results.FileInfo),
+	}
+
+	return largeFileTokens, nil
+}
+
+// Get B2 endpoint for chunked upload.
 // DOCS: https://www.backblaze.com/b2/docs/b2_get_upload_url.html
-func getUploadURL() (B2UploadTokens, error) {
+// DOCS: https://www.backblaze.com/b2/docs/b2_get_upload_part_url.html
+func getUploadURL(large bool) (B2UploadTokens, error) {
+	endpoint := "b2_get_upload_url"
+	if large {
+		endpoint = "b2_get_upload_part_url"
+	}
+
 	authData, err := authTokens()
 	if err != nil {
 		return B2UploadTokens{}, fmt.Errorf("[getUploadURL][authTokens]: %w", err)
@@ -170,7 +258,7 @@ func getUploadURL() (B2UploadTokens, error) {
 	payload := map[string]string{"bucketId": bucketID}
 	payloadBytes, _ := json.Marshal(payload)
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/b2api/v1/b2_get_upload_url", authData.ApiUrl), bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/b2api/v1/%s", authData.ApiUrl, endpoint), bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return B2UploadTokens{}, fmt.Errorf("[getUploadURL][http.NewRequest]: %w", err)
 	}
@@ -217,8 +305,8 @@ func getUploadURL() (B2UploadTokens, error) {
 
 // Upload file to B2 bucket.
 // DOCS: https://www.backblaze.com/b2/docs/b2_upload_file.html
-func UploadToB2(data []byte, name, fileType string) (string, error) {
-	authData, err := getUploadURL()
+func UploadToB2(data []byte, name string, fileType string, large bool) (string, error) {
+	authData, err := getUploadURL(large)
 	if err != nil {
 		return "", fmt.Errorf("[UploadToB2][getUploadURL]: %w", err)
 	}
