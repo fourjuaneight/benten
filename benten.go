@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	lop "github.com/samber/lo/parallel"
+	lo "github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 )
 
@@ -57,7 +57,7 @@ func backup(src string, dist string) {
 			log.Fatal(err)
 		}
 
-		lop.ForEach(files, func(file string, _ int) {
+		lo.ForEach(files, func(file string, _ int) {
 			fileData, err := GetFileData(file)
 			if err != nil {
 				log.Fatal(err)
