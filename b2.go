@@ -236,7 +236,7 @@ func startLargeFile(params FileInfo) (B2LargeFileTokens, error) {
 	return largeFileTokens, nil
 }
 
-// Get B2 endpoint for chunked upload.
+// Get B2 endpoint for upload.
 // DOCS: https://www.backblaze.com/b2/docs/b2_get_upload_url.html
 // DOCS: https://www.backblaze.com/b2/docs/b2_get_upload_part_url.html
 func getUploadURL(large bool) (B2UploadTokens, error) {
