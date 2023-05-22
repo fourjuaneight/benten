@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -16,6 +17,14 @@ type FileData struct {
 	extension string
 }
 
+type ChunkFileData struct {
+	data      [][]byte
+	name      string
+	extension string
+}
+
+const FiveGB = 5 * 1024 * 1024 * 1024
+
 func GetFileData(src string) (FileData, error) {
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -28,6 +37,51 @@ func GetFileData(src string) (FileData, error) {
 
 	return FileData{
 		data:      data,
+		name:      name,
+		extension: extension,
+	}, nil
+}
+
+func GetChunkFileData(src string) (ChunkFileData, error) {
+	file, err := os.Open(src)
+	if err != nil {
+		return ChunkFileData{}, fmt.Errorf("[readFile][os.Open]: %w", err)
+	}
+
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return ChunkFileData{}, fmt.Errorf("[readFile][file.Stat]: %w", err)
+	}
+
+	fileSize := info.Size()
+	numberOfChunks := fileSize / FiveGB
+	if fileSize%FiveGB != 0 {
+		numberOfChunks++
+	}
+
+	chunks := make([][]byte, numberOfChunks)
+
+	for i := int64(0); i < numberOfChunks; i++ {
+		buffer := make([]byte, FiveGB)
+		bytesRead, err := io.ReadFull(file, buffer)
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			// This will happen on the last chunk if it's smaller than 5GB
+			buffer = buffer[:bytesRead]
+		} else if err != nil {
+			return ChunkFileData{}, fmt.Errorf("[readFile][ io.ReadFull]: %w", err)
+		}
+
+		chunks[i] = buffer
+	}
+
+	name := filepath.Base(src)
+	extension := filepath.Ext(src)
+	extension = extension[1:]
+
+	return ChunkFileData{
+		data:      chunks,
 		name:      name,
 		extension: extension,
 	}, nil
